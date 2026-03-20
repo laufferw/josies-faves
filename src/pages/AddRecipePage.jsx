@@ -158,11 +158,11 @@ export default function AddRecipePage({ onBack, onSaved }) {
             Point your camera at a cookbook page and snap a photo.
           </p>
 
+          {/* Camera input — capture attr causes black screen on iOS Safari PWA, omit it */}
           <input
             ref={fileInputRef}
             type="file"
             accept="image/*"
-            capture="environment"
             onChange={handleFileChange}
             className="hidden"
           />
@@ -172,22 +172,7 @@ export default function AddRecipePage({ onBack, onSaved }) {
             className="btn-primary w-full max-w-xs text-xl"
             style={{ minHeight: 64 }}
           >
-            📷 Open Camera
-          </button>
-
-          <p className="text-gray-400 text-sm mt-4">
-            Or choose an existing photo from your library
-          </p>
-          <button
-            onClick={() => {
-              if (fileInputRef.current) {
-                fileInputRef.current.removeAttribute('capture')
-                fileInputRef.current.click()
-              }
-            }}
-            className="mt-2 text-primary underline text-base"
-          >
-            Choose from library
+            📷 Take Photo or Choose
           </button>
         </div>
       )}
