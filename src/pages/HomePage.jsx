@@ -16,58 +16,63 @@ export default function HomePage({ onAddRecipe, onViewRecipe }) {
     setError(null)
 
     try {
-      // Get user's household
-      const { data: profile } = await supabase
+      // Get user's profile — may not exist yet if first login just happened
+      const { data: profile, error: profileErr } = await supabase
         .from('profiles')
         .select('household_id')
         .eq('id', user.id)
-        .single()
+        .maybeSingle()  // won't throw on 0 rows
+
+      if (profileErr) throw profileErr
 
       if (!profile?.household_id) {
-        setRecipes([])
+        // Profile not ready yet — wait a beat and retry once
+        await new Promise(r => setTimeout(r, 1500))
+        const { data: retryProfile } = await supabase
+          .from('profiles')
+          .select('household_id')
+          .eq('id', user.id)
+          .maybeSingle()
+
+        if (!retryProfile?.household_id) {
+          setRecipes([])
+          setLoading(false)
+          return
+        }
+        // Use the retried profile
+        const { data } = await supabase
+          .from('recipes')
+          .select('id, title, source, photo_url, created_at')
+          .eq('household_id', retryProfile.household_id)
+          .order('created_at', { ascending: false })
+        setRecipes(data || [])
         setLoading(false)
         return
       }
 
-      let query = supabase
-        .from('recipes')
-        .select('id, title, source, photo_url, created_at')
-        .eq('household_id', profile.household_id)
-        .order('created_at', { ascending: false })
+      let data, fetchError
 
       if (search.trim()) {
-        query = query.textSearch(
-          'tsv',
-          search.trim(),
-          { type: 'websearch', config: 'english' }
-        )
+        // Use ilike for search — simple and reliable
+        ;({ data, error: fetchError } = await supabase
+          .from('recipes')
+          .select('id, title, source, photo_url, created_at')
+          .eq('household_id', profile.household_id)
+          .or(`title.ilike.%${search.trim()}%,ocr_text.ilike.%${search.trim()}%`)
+          .order('created_at', { ascending: false }))
+      } else {
+        ;({ data, error: fetchError } = await supabase
+          .from('recipes')
+          .select('id, title, source, photo_url, created_at')
+          .eq('household_id', profile.household_id)
+          .order('created_at', { ascending: false }))
       }
-
-      const { data, error: fetchError } = await query
 
       if (fetchError) throw fetchError
       setRecipes(data || [])
     } catch (err) {
       console.error('Error fetching recipes:', err)
-      // Fallback: simple ilike search if FTS fails
-      try {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('household_id')
-          .eq('id', user.id)
-          .single()
-
-        const { data } = await supabase
-          .from('recipes')
-          .select('id, title, source, photo_url, created_at')
-          .eq('household_id', profile?.household_id)
-          .ilike('title', search ? `%${search}%` : '%')
-          .order('created_at', { ascending: false })
-
-        setRecipes(data || [])
-      } catch (fallbackErr) {
-        setError('Could not load recipes. Check your connection.')
-      }
+      setError('Could not load recipes. Check your connection.')
     } finally {
       setLoading(false)
     }
@@ -95,15 +100,16 @@ export default function HomePage({ onAddRecipe, onViewRecipe }) {
           </button>
         </div>
 
-        {/* Search */}
+        {/* Search — pl-10 so text clears the icon */}
         <div className="relative">
-          <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-lg">🔍</div>
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none select-none">🔍</span>
           <input
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search recipes or ingredients..."
-            className="input-field pl-11"
+            className="input-field"
+            style={{ paddingLeft: '2.25rem' }}
           />
         </div>
       </div>
