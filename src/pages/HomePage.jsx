@@ -91,7 +91,7 @@ export default function HomePage({ onAddRecipe, onViewRecipe }) {
       {/* Header */}
       <div className="sticky top-0 z-10 px-4 pt-4 pb-3" style={{ background: '#fdfaf7' }}>
         <div className="flex items-center justify-between mb-3">
-          <h1 className="text-2xl font-bold text-gray-800">🍳 Josie's Faves</h1>
+          <h1 className="text-2xl font-bold text-gray-800">Josie's Faves 🍳</h1>
           <button
             onClick={handleSignOut}
             className="text-gray-400 text-sm p-2"

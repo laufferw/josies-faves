@@ -89,9 +89,9 @@ export default function RecipeCard({ recipe, onClick }) {
         <h3 className="font-semibold text-gray-800 text-sm leading-tight line-clamp-2 mb-1">
           {recipe.title}
         </h3>
-        {recipe.source && (
-          <p className="text-xs truncate" style={{ color: accent }}>{recipe.source}</p>
-        )}
+        <p className="text-xs truncate" style={{ color: recipe.source ? accent : 'transparent' }}>
+          {recipe.source || '·'}
+        </p>
       </div>
     </div>
   )
