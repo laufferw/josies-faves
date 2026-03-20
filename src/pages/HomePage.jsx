@@ -153,7 +153,7 @@ export default function HomePage({ onAddRecipe, onViewRecipe }) {
                 {recipes.length} result{recipes.length !== 1 ? 's' : ''} for "{search}"
               </p>
             )}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
               {recipes.map((recipe) => (
                 <RecipeCard
                   key={recipe.id}

@@ -77,7 +77,7 @@ export default function RecipeCard({ recipe, onClick }) {
           </>
         ) : (
           <div className="w-full h-full flex flex-col items-center justify-center gap-1">
-            <span style={{ fontSize: '3rem', lineHeight: 1 }}>{emoji}</span>
+            <span style={{ fontSize: 'clamp(2rem, 8vw, 3.5rem)', lineHeight: 1 }}>{emoji}</span>
             {/* Accent bar at bottom */}
             <div className="absolute bottom-0 left-0 right-0 h-1 rounded-b" style={{ background: accent }} />
           </div>
