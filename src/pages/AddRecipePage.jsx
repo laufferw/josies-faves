@@ -102,26 +102,7 @@ export default function AddRecipePage({ onBack, onSaved }) {
 
       if (!profile?.household_id) throw new Error('Profile not set up correctly')
 
-      let photoUrl = null
-
-      if (capturedImage?.file) {
-        const ext = 'jpg'
-        const filename = `${profile.household_id}/${Date.now()}.${ext}`
-        const { error: uploadError } = await supabase.storage
-          .from('recipe-photos')
-          .upload(filename, capturedImage.file, {
-            contentType: 'image/jpeg',
-            upsert: false,
-          })
-
-        if (!uploadError) {
-          const { data: { publicUrl } } = supabase.storage
-            .from('recipe-photos')
-            .getPublicUrl(filename)
-          photoUrl = publicUrl
-        }
-      }
-
+      // Save recipe immediately — don't wait for photo upload
       const { data: recipe, error: insertError } = await supabase
         .from('recipes')
         .insert({
@@ -130,15 +111,31 @@ export default function AddRecipePage({ onBack, onSaved }) {
           title: title.trim(),
           source: source.trim() || null,
           ocr_text: ocrText || null,
-          photo_url: photoUrl,
+          photo_url: null, // will be backfilled async
         })
         .select()
         .single()
 
       if (insertError) throw insertError
 
+      // Upload photo in background — don't block navigation
+      if (capturedImage?.file) {
+        const filename = `${profile.household_id}/${recipe.id}.jpg`
+        supabase.storage
+          .from('recipe-photos')
+          .upload(filename, capturedImage.file, { contentType: 'image/jpeg', upsert: false })
+          .then(({ error: uploadError }) => {
+            if (!uploadError) {
+              const { data: { publicUrl } } = supabase.storage
+                .from('recipe-photos')
+                .getPublicUrl(filename)
+              supabase.from('recipes').update({ photo_url: publicUrl }).eq('id', recipe.id)
+            }
+          })
+      }
+
       setStep(STEPS.DONE)
-      setTimeout(() => onSaved(recipe.id), 1500)
+      setTimeout(() => onSaved(recipe.id), 1200)
     } catch (err) {
       console.error('Save error:', err)
       setError(`Couldn't save: ${err.message}`)
@@ -179,15 +176,7 @@ export default function AddRecipePage({ onBack, onSaved }) {
             Take a photo of a cookbook page or choose one from your library.
           </p>
 
-          {/* Two separate inputs: camera uses capture, library does not */}
-          <input
-            ref={cameraInputRef}
-            type="file"
-            accept="image/*"
-            capture="environment"
-            onChange={(e) => processFile(e.target.files?.[0])}
-            className="hidden"
-          />
+          {/* Single input, no capture attr — iOS shows action sheet: Camera / Photo Library / Files */}
           <input
             ref={libraryInputRef}
             type="file"
@@ -198,18 +187,11 @@ export default function AddRecipePage({ onBack, onSaved }) {
 
           <div className="w-full max-w-xs space-y-3">
             <button
-              onClick={() => cameraInputRef.current?.click()}
+              onClick={() => libraryInputRef.current?.click()}
               className="btn-primary w-full text-xl"
               style={{ minHeight: 64 }}
             >
-              📷 Open Camera
-            </button>
-            <button
-              onClick={() => libraryInputRef.current?.click()}
-              className="btn-secondary w-full text-lg"
-              style={{ minHeight: 56 }}
-            >
-              🖼️ Choose from Library
+              📷 Take Photo or Choose
             </button>
           </div>
         </div>
