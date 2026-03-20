@@ -10,59 +10,78 @@ const STEPS = {
   DONE: 'done',
 }
 
+// Resize + compress image to max 1200px, JPEG 80% — keeps it under Vercel's 4.5MB limit
+function compressImage(file) {
+  return new Promise((resolve) => {
+    const img = new Image()
+    const objectUrl = URL.createObjectURL(file)
+    img.onload = () => {
+      const MAX = 1200
+      let { width, height } = img
+      if (width > MAX || height > MAX) {
+        if (width > height) {
+          height = Math.round((height * MAX) / width)
+          width = MAX
+        } else {
+          width = Math.round((width * MAX) / height)
+          height = MAX
+        }
+      }
+      const canvas = document.createElement('canvas')
+      canvas.width = width
+      canvas.height = height
+      const ctx = canvas.getContext('2d')
+      ctx.drawImage(img, 0, 0, width, height)
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.80)
+      const base64 = dataUrl.split(',')[1]
+      URL.revokeObjectURL(objectUrl)
+      resolve({ base64, mimeType: 'image/jpeg', objectUrl: dataUrl })
+    }
+    img.src = objectUrl
+  })
+}
+
 export default function AddRecipePage({ onBack, onSaved }) {
   const { user } = useAuth()
   const [step, setStep] = useState(STEPS.CAPTURE)
-  const [capturedImage, setCapturedImage] = useState(null) // { base64, mimeType, objectUrl }
+  const [capturedImage, setCapturedImage] = useState(null)
   const [title, setTitle] = useState('')
   const [source, setSource] = useState('')
   const [ocrText, setOcrText] = useState('')
   const [error, setError] = useState(null)
-  const fileInputRef = useRef(null)
+  const cameraInputRef = useRef(null)
+  const libraryInputRef = useRef(null)
 
-  const handleFileChange = async (e) => {
-    const file = e.target.files?.[0]
+  const processFile = async (file) => {
     if (!file) return
-
     setError(null)
+    setStep(STEPS.READING)
 
-    // Convert to base64
-    const reader = new FileReader()
-    reader.onload = async (ev) => {
-      const dataUrl = ev.target.result
-      const base64 = dataUrl.split(',')[1]
-      const mimeType = file.type || 'image/jpeg'
-      const objectUrl = URL.createObjectURL(file)
-
+    try {
+      // Compress before sending — iPhone photos can be 15MB+
+      const { base64, mimeType, objectUrl } = await compressImage(file)
       setCapturedImage({ base64, mimeType, objectUrl, file })
-      setStep(STEPS.READING)
 
-      // Call OCR
-      try {
-        const response = await fetch('/api/ocr', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ image: base64, mimeType }),
-        })
+      const response = await fetch('/api/ocr', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: base64, mimeType }),
+      })
 
-        if (!response.ok) {
-          const errData = await response.json().catch(() => ({}))
-          throw new Error(errData.error || `OCR failed (${response.status})`)
-        }
-
-        const { title: extractedTitle, text: extractedText } = await response.json()
-        setTitle(extractedTitle || '')
-        setOcrText(extractedText || '')
-        setStep(STEPS.REVIEW)
-      } catch (err) {
-        console.error('OCR error:', err)
-        setError(`Couldn't read the recipe: ${err.message}. You can type the title manually.`)
-        setTitle('')
-        setOcrText('')
-        setStep(STEPS.REVIEW)
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}))
+        throw new Error(errData.error || `OCR failed (${response.status})`)
       }
+
+      const { title: extractedTitle, text: extractedText } = await response.json()
+      setTitle(extractedTitle || '')
+      setOcrText(extractedText || '')
+      setStep(STEPS.REVIEW)
+    } catch (err) {
+      console.error('OCR error:', err)
+      setError(`Couldn't read the recipe: ${err.message}. Enter the title manually below.`)
+      setStep(STEPS.REVIEW)
     }
-    reader.readAsDataURL(file)
   }
 
   const handleSave = async () => {
@@ -75,7 +94,6 @@ export default function AddRecipePage({ onBack, onSaved }) {
     setError(null)
 
     try {
-      // Get user profile + household
       const { data: profile } = await supabase
         .from('profiles')
         .select('id, household_id')
@@ -86,22 +104,17 @@ export default function AddRecipePage({ onBack, onSaved }) {
 
       let photoUrl = null
 
-      // Upload photo to Supabase Storage
       if (capturedImage?.file) {
-        const ext = capturedImage.mimeType.includes('png') ? 'png' : 'jpg'
+        const ext = 'jpg'
         const filename = `${profile.household_id}/${Date.now()}.${ext}`
-
         const { error: uploadError } = await supabase.storage
           .from('recipe-photos')
           .upload(filename, capturedImage.file, {
-            contentType: capturedImage.mimeType,
+            contentType: 'image/jpeg',
             upsert: false,
           })
 
-        if (uploadError) {
-          console.warn('Photo upload failed:', uploadError.message)
-          // Continue without photo rather than blocking save
-        } else {
+        if (!uploadError) {
           const { data: { publicUrl } } = supabase.storage
             .from('recipe-photos')
             .getPublicUrl(filename)
@@ -109,7 +122,6 @@ export default function AddRecipePage({ onBack, onSaved }) {
         }
       }
 
-      // Insert recipe
       const { data: recipe, error: insertError } = await supabase
         .from('recipes')
         .insert({
@@ -134,6 +146,15 @@ export default function AddRecipePage({ onBack, onSaved }) {
     }
   }
 
+  const reset = () => {
+    setCapturedImage(null)
+    setTitle('')
+    setSource('')
+    setOcrText('')
+    setError(null)
+    setStep(STEPS.CAPTURE)
+  }
+
   return (
     <div className="min-h-screen flex flex-col" style={{ background: '#fdfaf7' }}>
       {/* Header */}
@@ -153,37 +174,54 @@ export default function AddRecipePage({ onBack, onSaved }) {
       {step === STEPS.CAPTURE && (
         <div className="flex-1 flex flex-col items-center justify-center px-6 text-center">
           <div className="text-7xl mb-6">📸</div>
-          <h2 className="text-2xl font-bold text-gray-800 mb-3">Take a photo</h2>
+          <h2 className="text-2xl font-bold text-gray-800 mb-3">Add a recipe</h2>
           <p className="text-gray-500 text-lg mb-10">
-            Point your camera at a cookbook page and snap a photo.
+            Take a photo of a cookbook page or choose one from your library.
           </p>
 
-          {/* Camera input — capture attr causes black screen on iOS Safari PWA, omit it */}
+          {/* Two separate inputs: camera uses capture, library does not */}
           <input
-            ref={fileInputRef}
+            ref={cameraInputRef}
             type="file"
             accept="image/*"
-            onChange={handleFileChange}
+            capture="environment"
+            onChange={(e) => processFile(e.target.files?.[0])}
+            className="hidden"
+          />
+          <input
+            ref={libraryInputRef}
+            type="file"
+            accept="image/*"
+            onChange={(e) => processFile(e.target.files?.[0])}
             className="hidden"
           />
 
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="btn-primary w-full max-w-xs text-xl"
-            style={{ minHeight: 64 }}
-          >
-            📷 Take Photo or Choose
-          </button>
+          <div className="w-full max-w-xs space-y-3">
+            <button
+              onClick={() => cameraInputRef.current?.click()}
+              className="btn-primary w-full text-xl"
+              style={{ minHeight: 64 }}
+            >
+              📷 Open Camera
+            </button>
+            <button
+              onClick={() => libraryInputRef.current?.click()}
+              className="btn-secondary w-full text-lg"
+              style={{ minHeight: 56 }}
+            >
+              🖼️ Choose from Library
+            </button>
+          </div>
         </div>
       )}
 
-      {/* Step: Reading (OCR in progress) */}
+      {/* Step: Reading */}
       {step === STEPS.READING && (
         <div className="flex-1 flex flex-col items-center justify-center px-6 text-center">
           {capturedImage?.objectUrl && (
             <img
               src={capturedImage.objectUrl}
-              alt="Recipe photo"
+              alt="Recipe"
               className="w-48 h-48 object-cover rounded-2xl mb-8 shadow-md opacity-70"
             />
           )}
@@ -203,7 +241,7 @@ export default function AddRecipePage({ onBack, onSaved }) {
             <div className="mb-4 rounded-2xl overflow-hidden shadow-sm">
               <img
                 src={capturedImage.objectUrl}
-                alt="Recipe photo"
+                alt="Recipe"
                 className="w-full h-48 object-cover"
               />
             </div>
@@ -244,9 +282,7 @@ export default function AddRecipePage({ onBack, onSaved }) {
 
             {ocrText && (
               <div>
-                <label className="block text-gray-700 font-semibold mb-2">
-                  Recipe text
-                </label>
+                <label className="block text-gray-700 font-semibold mb-2">Recipe text</label>
                 <div className="bg-white rounded-2xl border-2 border-gray-100 px-4 py-3 text-sm text-gray-600 max-h-48 overflow-y-auto whitespace-pre-wrap">
                   {ocrText}
                 </div>
@@ -263,18 +299,8 @@ export default function AddRecipePage({ onBack, onSaved }) {
             >
               💾 Save Recipe
             </button>
-            <button
-              onClick={() => {
-                setCapturedImage(null)
-                setTitle('')
-                setSource('')
-                setOcrText('')
-                setError(null)
-                setStep(STEPS.CAPTURE)
-              }}
-              className="btn-secondary w-full"
-            >
-              Retake Photo
+            <button onClick={reset} className="btn-secondary w-full">
+              Try Another Photo
             </button>
           </div>
         </div>
