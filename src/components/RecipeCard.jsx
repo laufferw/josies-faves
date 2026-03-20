@@ -29,7 +29,7 @@ function getMealStyle(title = '') {
   if (/bread|biscuit|scone|roll|loaf|baguette/.test(t))
     return { emoji: '🍞', bg: '#fff8e1', accent: '#f57f17' }
   if (/smoothie|juice|drink|cocktail|lemonade/.test(t))
-    return { emoji: '🥤', bg: '#e8f5e9', accent: '#00897b' }
+    return { emoji: '🥤', bg: '#e3f2fd', accent: '#1e88e5' }
   if (/rice|risotto|pilaf|fried rice/.test(t))
     return { emoji: '🍚', bg: '#f3e5f5', accent: '#8e24aa' }
   if (/bean|lentil|chickpea|legume/.test(t))
@@ -38,6 +38,8 @@ function getMealStyle(title = '') {
     return { emoji: '🥦', bg: '#e8f5e9', accent: '#2e7d32' }
   if (/quinoa|grain|oat|farro/.test(t))
     return { emoji: '🌾', bg: '#f9fbe7', accent: '#9e9d24' }
+  if (/lassi|smoothie|juice|drink|cocktail|lemonade/.test(t))
+    return { emoji: '🥭', bg: '#fff8e1', accent: '#f9a825' }
   if (/breakfast|pancake|waffle|french toast|granola/.test(t))
     return { emoji: '🥞', bg: '#fff3e0', accent: '#f57c00' }
   if (/polenta|frico|fritter/.test(t))
