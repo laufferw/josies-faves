@@ -55,20 +55,21 @@ export default async function handler(req, res) {
 
     const rawText = response.content[0]?.text || ''
 
-    // Parse JSON from response
+    // Parse JSON from response — strip markdown fences first
     let parsed
     try {
-      // Try to extract JSON if wrapped in markdown code blocks
-      const jsonMatch = rawText.match(/```(?:json)?\s*([\s\S]*?)```/) || rawText.match(/({[\s\S]*})/)
-      const jsonStr = jsonMatch ? jsonMatch[1] || jsonMatch[0] : rawText
-      parsed = JSON.parse(jsonStr.trim())
-    } catch {
-      // Fallback: return raw text as just the text field
-      console.warn('Could not parse JSON from Claude response, using raw text')
-      parsed = {
-        title: '',
-        text: rawText,
+      // Strip ```json ... ``` or ``` ... ``` wrappers
+      let jsonStr = rawText.trim()
+      jsonStr = jsonStr.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
+      // If still not starting with {, try to find the first { ... } block
+      if (!jsonStr.startsWith('{')) {
+        const match = jsonStr.match(/\{[\s\S]*\}/)
+        if (match) jsonStr = match[0]
       }
+      parsed = JSON.parse(jsonStr)
+    } catch {
+      console.warn('Could not parse JSON from Claude response, using raw text')
+      parsed = { title: '', text: rawText }
     }
 
     return res.status(200).json({
