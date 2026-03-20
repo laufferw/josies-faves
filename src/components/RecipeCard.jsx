@@ -2,7 +2,9 @@
 function getMealStyle(title = '') {
   const t = title.toLowerCase()
 
-  if (/soup|stew|chowder|bisque|broth|chili/.test(t))
+  if (/chili|chilli/.test(t))
+    return { emoji: '🌶️', bg: '#ffebee', accent: '#c62828' }
+  if (/soup|stew|chowder|bisque|broth/.test(t))
     return { emoji: '🍲', bg: '#fff3e0', accent: '#fb8c00' }
   if (/salad|slaw|greens|arugula|kale|spinach/.test(t))
     return { emoji: '🥗', bg: '#e8f5e9', accent: '#43a047' }
