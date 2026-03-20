@@ -33,32 +33,8 @@ export function useAuth() {
 }
 
 async function ensureProfile(user) {
-  try {
-    // Check if profile exists
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('id', user.id)
-      .single()
-
-    if (!profile) {
-      // Create a household for solo users
-      const { data: household } = await supabase
-        .from('households')
-        .insert({ name: `${user.email}'s Kitchen` })
-        .select()
-        .single()
-
-      if (household) {
-        await supabase.from('profiles').insert({
-          id: user.id,
-          household_id: household.id,
-          display_name: user.email?.split('@')[0] || 'Josie',
-          email: user.email,
-        })
-      }
-    }
-  } catch (err) {
-    console.error('Error ensuring profile:', err)
-  }
+  // Profile + household are created by a DB trigger on auth.users INSERT.
+  // Nothing to do client-side — the trigger handles it with SECURITY DEFINER.
+  // We just wait briefly to let the trigger complete before the app tries to read the profile.
+  await new Promise(r => setTimeout(r, 800))
 }

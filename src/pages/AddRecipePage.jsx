@@ -94,13 +94,14 @@ export default function AddRecipePage({ onBack, onSaved }) {
     setError(null)
 
     try {
-      const { data: profile } = await supabase
+      const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('id, household_id')
         .eq('id', user.id)
-        .single()
+        .maybeSingle()
 
-      if (!profile?.household_id) throw new Error('Profile not set up correctly')
+      if (profileError) throw new Error(`Profile error: ${profileError.message}`)
+      if (!profile?.household_id) throw new Error('Profile not ready — please sign out and sign back in')
 
       // Save recipe immediately — don't wait for photo upload
       const { data: recipe, error: insertError } = await supabase
