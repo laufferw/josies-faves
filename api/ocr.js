@@ -46,7 +46,24 @@ export default async function handler(req, res) {
             },
             {
               type: 'text',
-              text: 'This is a page from a cookbook. Extract: 1) The recipe title (just the title, no extra words) 2) The complete recipe text including ingredients and instructions. Return ONLY valid JSON: {"title": string, "text": string}',
+              text: `This is a page from a cookbook. Extract only the structured recipe content.
+
+Return ONLY valid JSON with this exact shape:
+{"title": string, "text": string}
+
+Rules:
+- "title": the recipe name only, no extra words
+- "text": ingredients list + instructions only. Skip all narrative, headnotes, author stories, serving suggestions, and intro paragraphs. Start directly with the ingredients.
+- Format "text" like this:
+  INGREDIENTS
+  - item 1
+  - item 2
+
+  INSTRUCTIONS
+  1. Step one
+  2. Step two
+
+If a section is not visible in the photo, omit it. No markdown, no code fences — raw JSON only.`,
             },
           ],
         },
