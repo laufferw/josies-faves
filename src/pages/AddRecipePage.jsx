@@ -133,6 +133,12 @@ export default function AddRecipePage({ onBack, onSaved }) {
               supabase.from('recipes').update({ photo_url: publicUrl }).eq('id', recipe.id)
             }
           })
+          .catch((uploadErr) => {
+            // iOS Safari throws TypeError: Load failed on network errors
+            // rather than resolving with an error object. Safe to ignore —
+            // recipe is already saved, photo just won't be attached.
+            console.warn('Background photo upload failed (iOS Safari?):', uploadErr.message)
+          })
       }
 
       setStep(STEPS.DONE)
