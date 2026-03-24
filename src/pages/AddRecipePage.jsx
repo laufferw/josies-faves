@@ -41,6 +41,25 @@ function compressImage(file) {
   })
 }
 
+const MEAL_TYPES = [
+  { value: 'breakfast', label: '🌅 Breakfast' },
+  { value: 'lunch',     label: '☀️ Lunch' },
+  { value: 'dinner',    label: '🌙 Dinner' },
+  { value: 'snack',     label: '🍎 Snack' },
+  { value: 'dessert',   label: '🍰 Dessert' },
+]
+
+// Guess meal type from title keywords
+function guessMealType(title = '') {
+  const t = title.toLowerCase()
+  if (/pancake|waffle|omelette|oatmeal|granola|french toast|breakfast|frittata|egg.*muffin|muffin.*egg|bacon.*egg|egg.*bacon|scrambled|poached egg/.test(t)) return 'breakfast'
+  if (/cake|cookie|brownie|cupcake|dessert|pie|tart|pudding|cheesecake|ice cream|mousse|fudge|truffle/.test(t)) return 'dessert'
+  if (/sandwich|wrap|salad|soup|lunch|quesadilla|pita/.test(t)) return 'lunch'
+  if (/chip|dip|hummus|snack|pretzel|popcorn|trail mix|granola bar/.test(t)) return 'snack'
+  if (/pasta|pizza|steak|roast|chili|stew|casserole|curry|risotto|burger|dinner|bake|grilled|braised/.test(t)) return 'dinner'
+  return ''
+}
+
 export default function AddRecipePage({ onBack, onSaved }) {
   const { user } = useAuth()
   const [step, setStep] = useState(STEPS.CAPTURE)
@@ -48,6 +67,7 @@ export default function AddRecipePage({ onBack, onSaved }) {
   const [title, setTitle] = useState('')
   const [source, setSource] = useState('')
   const [ocrText, setOcrText] = useState('')
+  const [mealType, setMealType] = useState('')
   const [error, setError] = useState(null)
   const cameraInputRef = useRef(null)
   const libraryInputRef = useRef(null)
@@ -76,6 +96,7 @@ export default function AddRecipePage({ onBack, onSaved }) {
       const { title: extractedTitle, text: extractedText } = await response.json()
       setTitle(extractedTitle || '')
       setOcrText(extractedText || '')
+      setMealType(guessMealType(extractedTitle || ''))
       setStep(STEPS.REVIEW)
     } catch (err) {
       console.error('OCR error:', err)
@@ -112,6 +133,7 @@ export default function AddRecipePage({ onBack, onSaved }) {
           title: title.trim(),
           source: source.trim() || null,
           ocr_text: ocrText || null,
+          meal_type: mealType || null,
           photo_url: null, // will be backfilled async
         })
         .select()
@@ -155,6 +177,7 @@ export default function AddRecipePage({ onBack, onSaved }) {
     setTitle('')
     setSource('')
     setOcrText('')
+    setMealType('')
     setError(null)
     setStep(STEPS.CAPTURE)
   }
@@ -250,7 +273,10 @@ export default function AddRecipePage({ onBack, onSaved }) {
               <input
                 type="text"
                 value={title}
-                onChange={(e) => setTitle(e.target.value)}
+                onChange={(e) => {
+                  setTitle(e.target.value)
+                  if (!mealType) setMealType(guessMealType(e.target.value))
+                }}
                 placeholder="e.g. Chocolate Chip Cookies"
                 className="input-field"
               />
@@ -267,6 +293,29 @@ export default function AddRecipePage({ onBack, onSaved }) {
                 placeholder="e.g. Joy of Cooking, page 342"
                 className="input-field"
               />
+            </div>
+
+            <div>
+              <label className="block text-gray-700 font-semibold mb-2">
+                Meal type <span className="text-gray-400 font-normal">(optional)</span>
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {MEAL_TYPES.map(({ value, label }) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setMealType(mealType === value ? '' : value)}
+                    className="px-3 py-2 rounded-xl text-sm font-medium border-2 transition-colors"
+                    style={{
+                      borderColor: mealType === value ? '#e11d48' : '#e5e7eb',
+                      background: mealType === value ? '#fce7ef' : 'white',
+                      color: mealType === value ? '#e11d48' : '#6b7280',
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {ocrText && (

@@ -3,17 +3,28 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
 import RecipeCard from '../components/RecipeCard'
 
+const MEAL_FILTERS = [
+  { value: '',          label: 'All' },
+  { value: 'breakfast', label: '🌅 Breakfast' },
+  { value: 'lunch',     label: '☀️ Lunch' },
+  { value: 'dinner',    label: '🌙 Dinner' },
+  { value: 'snack',     label: '🍎 Snack' },
+  { value: 'dessert',   label: '🍰 Dessert' },
+]
+
 export default function HomePage({ onAddRecipe, onViewRecipe }) {
   const { user } = useAuth()
   const [recipes, setRecipes] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const [mealFilter, setMealFilter] = useState('')
   const [error, setError] = useState(null)
 
   const fetchRecipes = useCallback(async () => {
     if (!user) return
     setLoading(true)
     setError(null)
+
 
     try {
       // Get user's profile — may not exist yet if first login just happened
@@ -42,7 +53,7 @@ export default function HomePage({ onAddRecipe, onViewRecipe }) {
         // Use the retried profile
         const { data } = await supabase
           .from('recipes')
-          .select('id, title, source, photo_url, created_at')
+          .select('id, title, source, photo_url, meal_type, created_at')
           .eq('household_id', retryProfile.household_id)
           .order('created_at', { ascending: false })
         setRecipes(data || [])
@@ -56,14 +67,14 @@ export default function HomePage({ onAddRecipe, onViewRecipe }) {
         // Use ilike for search — simple and reliable
         ;({ data, error: fetchError } = await supabase
           .from('recipes')
-          .select('id, title, source, photo_url, created_at')
+          .select('id, title, source, photo_url, meal_type, created_at')
           .eq('household_id', profile.household_id)
           .or(`title.ilike.%${search.trim()}%,ocr_text.ilike.%${search.trim()}%`)
           .order('created_at', { ascending: false }))
       } else {
         ;({ data, error: fetchError } = await supabase
           .from('recipes')
-          .select('id, title, source, photo_url, created_at')
+          .select('id, title, source, photo_url, meal_type, created_at')
           .eq('household_id', profile.household_id)
           .order('created_at', { ascending: false }))
       }
@@ -101,7 +112,7 @@ export default function HomePage({ onAddRecipe, onViewRecipe }) {
         </div>
 
         {/* Search — pl-10 so text clears the icon */}
-        <div className="relative">
+        <div className="relative mb-3">
           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none select-none">🔍</span>
           <input
             type="search"
@@ -111,6 +122,23 @@ export default function HomePage({ onAddRecipe, onViewRecipe }) {
             className="input-field"
             style={{ paddingLeft: '2.25rem' }}
           />
+        </div>
+
+        {/* Meal type filter tabs */}
+        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+          {MEAL_FILTERS.map(({ value, label }) => (
+            <button
+              key={value}
+              onClick={() => setMealFilter(value)}
+              className="flex-shrink-0 px-3 py-1.5 rounded-full text-sm font-medium transition-colors"
+              style={{
+                background: mealFilter === value ? '#e11d48' : '#f3f4f6',
+                color: mealFilter === value ? 'white' : '#6b7280',
+              }}
+            >
+              {label}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -148,20 +176,47 @@ export default function HomePage({ onAddRecipe, onViewRecipe }) {
           </div>
         ) : (
           <>
-            {search && (
-              <p className="text-gray-400 text-sm mb-3">
-                {recipes.length} result{recipes.length !== 1 ? 's' : ''} for "{search}"
-              </p>
-            )}
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-              {recipes.map((recipe) => (
-                <RecipeCard
-                  key={recipe.id}
-                  recipe={recipe}
-                  onClick={() => onViewRecipe(recipe.id)}
-                />
-              ))}
-            </div>
+            {(() => {
+              const filtered = mealFilter
+                ? recipes.filter(r => r.meal_type === mealFilter)
+                : recipes
+              const activeFilter = MEAL_FILTERS.find(f => f.value === mealFilter)
+
+              if (filtered.length === 0) {
+                return (
+                  <div className="text-center py-16">
+                    <div className="text-5xl mb-4">{search ? '🔍' : '🍽️'}</div>
+                    <h2 className="text-xl font-semibold text-gray-700 mb-2">No recipes found</h2>
+                    <p className="text-gray-400">
+                      {search
+                        ? `No ${mealFilter || 'recipes'} match "${search}"`
+                        : `No ${activeFilter?.label || 'recipes'} yet — add one!`}
+                    </p>
+                  </div>
+                )
+              }
+
+              return (
+                <>
+                  {(search || mealFilter) && (
+                    <p className="text-gray-400 text-sm mb-3">
+                      {filtered.length} recipe{filtered.length !== 1 ? 's' : ''}
+                      {mealFilter ? ` in ${activeFilter?.label}` : ''}
+                      {search ? ` for "${search}"` : ''}
+                    </p>
+                  )}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                    {filtered.map((recipe) => (
+                      <RecipeCard
+                        key={recipe.id}
+                        recipe={recipe}
+                        onClick={() => onViewRecipe(recipe.id)}
+                      />
+                    ))}
+                  </div>
+                </>
+              )
+            })()}
           </>
         )}
       </div>
